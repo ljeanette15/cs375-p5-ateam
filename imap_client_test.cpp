@@ -5,6 +5,8 @@
 #include "imap_client.h"
 #include <iostream>
 
+#define MAXDATALEN 100
+
 using namespace std;
 
 int main(int argc, char *argv[])
@@ -20,7 +22,28 @@ int main(int argc, char *argv[])
 
     cout << "Connection established..." << endl;
 
-    // imap.login();
+    char username[MAXDATALEN];
+    char password[MAXDATALEN];
+
+    cout << "Enter your username: ";
+    fgets(username, MAXDATALEN, stdin);
+
+    //  remove trailing newline
+
+    if ((strlen(username) > 0) && (username[strlen(username) - 1] == '\n'))
+        username[strlen(username) - 1] = '\0';
+
+    cout << username << endl;
+
+    cout << "Enter your password: ";
+    fgets(password, MAXDATALEN, stdin);
+
+    if ((strlen(password) > 0) && (password[strlen(password) - 1] == '\n'))
+        password[strlen(password) - 1] = '\0';
+
+    cout << password << endl;
+
+    imap.login(username, password);
 
     imap.quit();
 

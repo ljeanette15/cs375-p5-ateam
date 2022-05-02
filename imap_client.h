@@ -98,6 +98,55 @@ public:
     // Authenticate user using username and password
     int login(char *username, char *password)
     {
+        int user_len = strlen(username);
+        int pass_len = strlen(password);
+
+        char identifier[5] = {'a', '0', '0', '0', '1'};
+
+        char login_message[MAXDATASIZE];
+
+        for (int i = 0; i < 5; i++)
+        {
+            login_message[i] = identifier[i];
+        }
+
+        login_message[5] = ' ';
+
+        for (int i = 0; i < user_len; i++)
+        {
+            login_message[i + 5 + 1] = username[i];
+        }
+
+        login_message[5 + user_len + 1] = ' ';
+
+        for (int i = 0; i < pass_len; i++)
+        {
+            login_message[i + 5 + 1 + user_len + 1] = password[i];
+        }
+
+        login_message[pass_len + 5 + 1 + user_len + 1] = '\0';
+
+        int len, bytes_sent, numbytes;
+        char buf[MAXDATASIZE];
+
+        len = strlen(login_message);
+        bytes_sent = send(sockfd, login_message, len, 0);
+
+        if (bytes_sent == -1)
+        {
+            std::cout << "error sending" << std::endl;
+            exit(1);
+        }
+
+        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+        {
+            perror("recv");
+            exit(1);
+        }
+
+        buf[numbytes] = '\0';
+
+        std::cout << "received: " << buf << std::endl;
         return 0;
     }
 
