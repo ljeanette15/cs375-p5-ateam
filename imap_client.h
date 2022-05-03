@@ -16,6 +16,7 @@
 #include <sys/socket.h>
 #include <iostream>
 #include <signal.h>
+#include <poll.h>
 
 #define MAXDATASIZE 100
 
@@ -48,6 +49,8 @@ public:
         int rv;
         char s[INET6_ADDRSTRLEN];
 
+        memset(buf, 0, MAXDATASIZE);
+
         memset(&hints, 0, sizeof hints);
         hints.ai_family = AF_UNSPEC;
         hints.ai_socktype = SOCK_STREAM;
@@ -65,7 +68,7 @@ public:
                 continue;
             }
 
-            if (connect(sockfd, ptr->ai_addr, ptr->ai_addrlen) == -1)
+            if (connect(sockfd, ptr->ai_addr, ptr->ai_addrlen) != 0)
             {
                 close(sockfd);
                 perror("client: connect");
@@ -92,6 +95,73 @@ public:
 
         std::cout << "received: " << buf << std::endl;
 
+        memset(buf, 0, MAXDATASIZE);
+
+        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+        {
+            perror("recv");
+            exit(1);
+        }
+
+        buf[numbytes] = '\0';
+
+        std::cout << "received: " << buf << std::endl;
+
+        return 0;
+    }
+
+    int capability()
+    {
+        char buf[MAXDATASIZE];
+
+        int len, bytes_sent, numbytes;
+
+        struct pollfd pfds[1];
+
+        std::cout << "starting polling..." << std::endl;
+        pfds[0].fd = sockfd;
+        pfds[0].events = POLLIN;
+
+        while (1)
+        {
+
+            len = strlen("abcd CAPABILITY");
+            bytes_sent = send(sockfd, "abcd CAPABILITY", len, 0);
+
+            std::cout << "sent capability message again..." << std::endl;
+
+            if (bytes_sent == -1)
+            {
+                std::cout << "error sending" << std::endl;
+                exit(1);
+            }
+
+            int poll_count = poll(pfds, 1, 5);
+
+            if (poll_count == -1)
+            {
+                perror("poll");
+                exit(1);
+            }
+
+            for (int i = 0; i < 1; i++)
+            {
+                if (pfds[i].revents & POLLIN)
+                {
+                    // Response from server
+                    if (pfds[i].fd == sockfd)
+                    {
+                        int numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0);
+
+                        buf[numbytes] = '\0';
+
+                        std::cout << "received: " << buf << std::endl;
+
+                        break;
+                    }
+                }
+            }
+        }
         return 0;
     }
 
@@ -128,6 +198,7 @@ public:
 
         int len, bytes_sent, numbytes;
         char buf[MAXDATASIZE];
+        memset(buf, 0, MAXDATASIZE);
 
         len = strlen(login_message);
         bytes_sent = send(sockfd, login_message, len, 0);
