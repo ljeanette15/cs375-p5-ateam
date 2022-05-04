@@ -18,7 +18,7 @@
 #include <signal.h>
 #include <poll.h>
 
-#define MAXDATASIZE 100
+#define MAXDATASIZE 200
 
 class Imap
 {
@@ -43,13 +43,11 @@ public:
     // Send initial message to connect to server using TCP
     int make_connection()
     {
-        char buf[MAXDATASIZE];
         int numbytes;
         struct addrinfo hints, *servinfo, *ptr;
         int rv;
         char s[INET6_ADDRSTRLEN];
-
-        memset(buf, 0, MAXDATASIZE);
+        char buf[MAXDATASIZE];
 
         memset(&hints, 0, sizeof hints);
         hints.ai_family = AF_UNSPEC;
@@ -85,27 +83,45 @@ public:
 
         freeaddrinfo(servinfo);
 
-        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+        struct pollfd pfds[1];
+
+        pfds[0].fd = sockfd;
+        pfds[0].events = POLLIN;
+
+        int count = 0;
+
+        while (count < 5)
         {
-            perror("recv");
-            exit(1);
+            int poll_count = poll(pfds, 1, 100);
+
+            if (poll_count == -1)
+            {
+                perror("poll");
+                exit(1);
+            }
+
+            for (int i = 0; i < 1; i++)
+            {
+                if (pfds[i].revents & POLLIN)
+                {
+                    // Ack from receiver
+                    if (pfds[i].fd == sockfd)
+                    {
+                        memset(buf, 0, MAXDATASIZE);
+                        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+                        {
+                            perror("recv");
+                            exit(1);
+                        }
+
+                        buf[numbytes] = '\0';
+
+                        std::cout << "received: " << buf << std::endl;
+                    }
+                }
+            }
+            count++;
         }
-
-        buf[numbytes] = '\0';
-
-        std::cout << "received: " << buf << std::endl;
-
-        memset(buf, 0, MAXDATASIZE);
-
-        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
-        {
-            perror("recv");
-            exit(1);
-        }
-
-        buf[numbytes] = '\0';
-
-        std::cout << "received: " << buf << std::endl;
 
         return 0;
     }
@@ -140,46 +156,51 @@ public:
     // Authenticate user using username and password
     int login(char *username, char *password)
     {
+        char tag_received[6];
+        char status_received[2];
+        char received_message[MAXDATASIZE];
+        char buf[MAXDATASIZE];
+        memset(received_message, 0, MAXDATASIZE);
+
         int user_len = strlen(username);
         int pass_len = strlen(password);
+        char tag[6] = {'A', '0', '0', '0', '1', ' '};
 
         // Add initial unique ID and command to message
-        char identifier[11] = {'A', '0', '0', '0', '1', ' ', 'L', 'O', 'G', 'I', 'N'};
+        char command[6] = {'L', 'O', 'G', 'I', 'N', ' '};
 
         char login_message[MAXDATASIZE];
 
         // Add ID, username, and password to message
-        for (int i = 0; i < 11; i++)
+        for (int i = 0; i < 6; i++)
         {
-            login_message[i] = identifier[i];
+            login_message[i] = tag[i];
         }
 
-        login_message[11] = ' ';
+        for (int i = 0; i < 6; i++)
+        {
+            login_message[i + 6] = command[i];
+        }
 
         for (int i = 0; i < user_len; i++)
         {
-            login_message[i + 11 + 1] = username[i];
+            login_message[i + 12] = username[i];
         }
 
-        login_message[11 + user_len + 1] = ' ';
+        login_message[12 + user_len] = ' ';
 
         for (int i = 0; i < pass_len; i++)
         {
-            login_message[i + 11 + 1 + user_len + 1] = password[i];
+            login_message[i + 12 + user_len + 1] = password[i];
         }
 
-        login_message[pass_len + 11 + 1 + user_len + 1] = '\0';
+        login_message[pass_len + user_len + 12 + 1] = '\n';
+        login_message[pass_len + user_len + 12 + 2] = '\0';
 
         int len, bytes_sent, numbytes;
-        char buf[MAXDATASIZE];
-        memset(buf, 0, MAXDATASIZE);
 
-        len = strlen(login_message);
-
-        // Send message to server
-        bytes_sent = send(sockfd, login_message, len, 0);
-
-        std::cout << "sent: " << login_message << std::endl;
+        // Send login command to server
+        bytes_sent = send(sockfd, login_message, strlen(login_message), 0);
 
         if (bytes_sent == -1)
         {
@@ -187,16 +208,72 @@ public:
             exit(1);
         }
 
-        // Wait for response back from server
-        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+        struct pollfd pfds[1];
+
+        pfds[0].fd = sockfd;
+        pfds[0].events = POLLIN;
+
+        int count = 0;
+
+        while (count < 100)
         {
-            perror("recv");
-            exit(1);
+            int poll_count = poll(pfds, 1, 10);
+
+            if (poll_count == -1)
+            {
+                perror("poll");
+                exit(1);
+            }
+
+            for (int i = 0; i < 1; i++)
+            {
+                if (pfds[i].revents & POLLIN)
+                {
+                    // Ack from receiver
+                    if (pfds[i].fd == sockfd)
+                    {
+                        memset(buf, 0, MAXDATASIZE);
+                        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+                        {
+                            perror("recv");
+                            exit(1);
+                        }
+
+                        buf[numbytes] = '\0';
+
+                        strcat(received_message, buf);
+                    }
+                }
+            }
+            count++;
         }
 
-        buf[numbytes] = '\0';
+        std::cout << "received: " << received_message << std::endl;
 
-        std::cout << "received: " << buf << std::endl;
+        memset(tag_received, 0, 6);
+        memset(status_received, 0, 2);
+
+        for (int i = 0; i < 6; i++)
+        {
+            tag_received[i] = received_message[i];
+        }
+
+        if (strncmp(tag_received, tag, 5) != 0)
+        {
+            perror("tag received does not match");
+            exit(-1);
+        }
+
+        for (int i = 0; i < 2; i++)
+        {
+            status_received[i] = received_message[i + 6];
+        }
+        if (strncmp(status_received, "OK", 2) != 0)
+        {
+            perror("Login Failed.");
+            exit(-1);
+        }
+
         return 0;
     }
 
