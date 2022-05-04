@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
 
     cout << "Connection established..." << endl;
 
-    imap.capability();
+    // imap.capability();
 
     char username[MAXDATALEN];
     char password[MAXDATALEN];
@@ -41,6 +41,7 @@ int main(int argc, char *argv[])
     if ((strlen(password) > 0) && (password[strlen(password) - 1] == '\n'))
         password[strlen(password) - 1] = '\0';
 
+    cout << "username: " << username << " password: " << password << endl;
     imap.login(username, password);
 
     imap.quit();

@@ -110,58 +110,30 @@ public:
         return 0;
     }
 
+    // Request Capabilities from Server
     int capability()
     {
         char buf[MAXDATASIZE];
 
         int len, bytes_sent, numbytes;
 
-        struct pollfd pfds[1];
+        len = strlen("abcd CAPABILITY");
+        bytes_sent = send(sockfd, "abcd CAPABILITY", len, 0);
 
-        std::cout << "starting polling..." << std::endl;
-        pfds[0].fd = sockfd;
-        pfds[0].events = POLLIN;
+        std::cout << "sent capability message again..." << std::endl;
 
-        while (1)
+        if (bytes_sent == -1)
         {
-
-            len = strlen("abcd CAPABILITY");
-            bytes_sent = send(sockfd, "abcd CAPABILITY", len, 0);
-
-            std::cout << "sent capability message again..." << std::endl;
-
-            if (bytes_sent == -1)
-            {
-                std::cout << "error sending" << std::endl;
-                exit(1);
-            }
-
-            int poll_count = poll(pfds, 1, 5);
-
-            if (poll_count == -1)
-            {
-                perror("poll");
-                exit(1);
-            }
-
-            for (int i = 0; i < 1; i++)
-            {
-                if (pfds[i].revents & POLLIN)
-                {
-                    // Response from server
-                    if (pfds[i].fd == sockfd)
-                    {
-                        int numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0);
-
-                        buf[numbytes] = '\0';
-
-                        std::cout << "received: " << buf << std::endl;
-
-                        break;
-                    }
-                }
-            }
+            std::cout << "error sending" << std::endl;
+            exit(1);
         }
+
+        numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0);
+
+        buf[numbytes] = '\0';
+
+        std::cout << "received: " << buf << std::endl;
+
         return 0;
     }
 
@@ -171,37 +143,43 @@ public:
         int user_len = strlen(username);
         int pass_len = strlen(password);
 
-        char identifier[5] = {'a', '0', '0', '0', '1'};
+        // Add initial unique ID and command to message
+        char identifier[11] = {'A', '0', '0', '0', '1', ' ', 'L', 'O', 'G', 'I', 'N'};
 
         char login_message[MAXDATASIZE];
 
-        for (int i = 0; i < 5; i++)
+        // Add ID, username, and password to message
+        for (int i = 0; i < 11; i++)
         {
             login_message[i] = identifier[i];
         }
 
-        login_message[5] = ' ';
+        login_message[11] = ' ';
 
         for (int i = 0; i < user_len; i++)
         {
-            login_message[i + 5 + 1] = username[i];
+            login_message[i + 11 + 1] = username[i];
         }
 
-        login_message[5 + user_len + 1] = ' ';
+        login_message[11 + user_len + 1] = ' ';
 
         for (int i = 0; i < pass_len; i++)
         {
-            login_message[i + 5 + 1 + user_len + 1] = password[i];
+            login_message[i + 11 + 1 + user_len + 1] = password[i];
         }
 
-        login_message[pass_len + 5 + 1 + user_len + 1] = '\0';
+        login_message[pass_len + 11 + 1 + user_len + 1] = '\0';
 
         int len, bytes_sent, numbytes;
         char buf[MAXDATASIZE];
         memset(buf, 0, MAXDATASIZE);
 
         len = strlen(login_message);
+
+        // Send message to server
         bytes_sent = send(sockfd, login_message, len, 0);
+
+        std::cout << "sent: " << login_message << std::endl;
 
         if (bytes_sent == -1)
         {
@@ -209,6 +187,7 @@ public:
             exit(1);
         }
 
+        // Wait for response back from server
         if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
         {
             perror("recv");
