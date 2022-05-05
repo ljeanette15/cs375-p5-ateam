@@ -16,14 +16,9 @@ int main(int argc, char *argv[])
         cout << "need a command line arg" << endl;
     }
 
-    char buf[MAXDATASIZE];
-    int numbytes;
-
     Imap imap(argv[1]);
 
     imap.make_connection();
-
-    // imap.capability();
 
     char username[MAXDATASIZE];
     char password[MAXDATASIZE];
@@ -42,11 +37,11 @@ int main(int argc, char *argv[])
     if ((strlen(password) > 0) && (password[strlen(password) - 1] == '\n'))
         password[strlen(password) - 1] = '\0';
 
-    cout << "username: " << username << " password: " << password << endl;
-
     imap.login(username, password);
 
-    cout << "login successful..." << endl;
+    imap.capability();
+
+    imap.logout();
 
     imap.quit();
 
