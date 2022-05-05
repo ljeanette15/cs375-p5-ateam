@@ -2,6 +2,7 @@
 // Liam Jeanette and Loc Tran
 // May 2, 2022
 
+#include <regex.h>
 #include <poll.h>
 #include <stdlib.h>
 #include <time.h>
@@ -117,7 +118,7 @@ public:
 
                         buf[numbytes] = '\0';
 
-                        std::cout << "received: " << buf << std::endl;
+                        // std::cout << "received: " << buf << std::endl;
                     }
                 }
             }
@@ -184,7 +185,7 @@ public:
             count++;
         }
 
-        std::cout << "received: " << received_message << std::endl;
+        // std::cout << received_message << std::endl;
 
         return 0;
     }
@@ -284,7 +285,7 @@ public:
             count++;
         }
 
-        std::cout << "received: " << received_message << std::endl;
+        // std::cout << received_message << std::endl;
 
         memset(tag_received, 0, 6);
         memset(status_received, 0, 2);
@@ -313,7 +314,7 @@ public:
         return 0;
     }
 
-    // Display subjects of each message
+    // Display subjects of each message and its message number
     int display_messages()
     {
         char buf[MAXDATASIZE];
@@ -370,11 +371,44 @@ public:
             count++;
         }
 
-        std::cout << "received: " << received_message << std::endl;
+        // std::cout << received_message << std::endl;
+
+        // Get number of messages (not sure if this is even necessary)
+        regex_t reegex;
+        regmatch_t pmatch[1];
+        char num_messages[100];
+        int num;
+        memset(num_messages, 0, 100);
+
+        int value;
+
+        value = regcomp(&reegex, "[1,2,3,4,5,6,7,8,9] EXISTS", 0);
+
+        if (regexec(&reegex, received_message, 1, pmatch, 0) == 0)
+        {
+            int i = 0;
+            while (received_message[i + pmatch[0].rm_so] != 'E')
+            {
+
+                num_messages[i] = received_message[i + pmatch[0].rm_so];
+
+                i++;
+            }
+            num_messages[i - 1] = '\0';
+
+            num = atoi(num_messages);
+        }
+
+        else
+        {
+            std::cout << "pattern not found" << std::endl;
+        }
+
+        std::cout << "You have " << num << " messages " << std::endl;
 
         // Fetch messages
 
-        bytes_sent = send(sockfd, "A654 FETCH 1 (BODY[HEADER.FIELDS (SUBJECT)])\n", strlen("A654 FETCH 1 (BODY[HEADER.FIELDS (SUBJECT)])\n"), 0);
+        bytes_sent = send(sockfd, "A654 FETCH 1:* (BODY[HEADER.FIELDS (SUBJECT)])\n", strlen("A654 FETCH 1:* (BODY[HEADER.FIELDS (SUBJECT)])\n"), 0);
 
         if (bytes_sent == -1)
         {
@@ -418,7 +452,38 @@ public:
             count++;
         }
 
-        std::cout << "received: " << received_message << std::endl;
+        // std::cout << received_message << std::endl;
+
+        // Get only the subject of each fetch
+        regex_t reegex2;
+        regmatch_t pmatch2[num];
+        int value2;
+
+        value2 = regcomp(&reegex2, "Subject: ......", 0);
+
+        if (regexec(&reegex2, received_message, num, pmatch2, 0) == 0)
+        {
+            std::cout << "pattern found" << std::endl;
+        }
+
+        else
+        {
+            std::cout << "pattern not found" << std::endl;
+        }
+
+        std::cout << pmatch2[0].rm_so << std::endl;
+        std::cout << pmatch2[1].rm_so << std::endl;
+        std::cout << pmatch2[2].rm_so << std::endl;
+
+        for (int i = 0; i < num; i++)
+        {
+            std::cout << i << ": ";
+            for (int j = pmatch2[i].rm_so; j < pmatch2[i].rm_eo; j++)
+            {
+                std::cout << received_message[j];
+            }
+            std::cout << "\n";
+        }
 
         return 0;
     }
@@ -430,8 +495,64 @@ public:
     }
 
     // Delete messages from server
-    int delete_messages()
+    int delete_messages(char *message_num)
     {
+        char buf[MAXDATASIZE];
+        char received_message[MAXDATASIZE];
+        memset(received_message, 0, MAXDATASIZE);
+
+        int len, bytes_sent, numbytes;
+
+        bytes_sent = send(sockfd, "A0003 CAPABILITY\n", strlen("A0003 CAPABILITY\n"), 0);
+
+        if (bytes_sent == -1)
+        {
+            std::cout << "error sending" << std::endl;
+            exit(1);
+        }
+
+        struct pollfd pfds[1];
+
+        pfds[0].fd = sockfd;
+        pfds[0].events = POLLIN;
+
+        int count = 0;
+
+        while (count < 10)
+        {
+            int poll_count = poll(pfds, 1, 200);
+
+            if (poll_count == -1)
+            {
+                perror("poll");
+                exit(1);
+            }
+
+            for (int i = 0; i < 1; i++)
+            {
+                if (pfds[i].revents & POLLIN)
+                {
+                    // Ack from receiver
+                    if (pfds[i].fd == sockfd)
+                    {
+                        memset(buf, 0, MAXDATASIZE);
+                        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+                        {
+                            perror("recv");
+                            exit(1);
+                        }
+
+                        buf[numbytes] = '\0';
+
+                        strcat(received_message, buf);
+                    }
+                }
+            }
+            count++;
+        }
+
+        // std::cout << received_message << std::endl;
+
         return 0;
     }
 
@@ -493,7 +614,7 @@ public:
             count++;
         }
 
-        std::cout << "received: " << received_message << std::endl;
+        // std::cout << received_message << std::endl;
 
         return 0;
     }
