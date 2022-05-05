@@ -18,7 +18,7 @@
 #include <signal.h>
 #include <poll.h>
 
-#define MAXDATASIZE 600
+#define MAXDATASIZE 1000
 
 class Imap
 {
@@ -48,6 +48,7 @@ public:
         int rv;
         char s[INET6_ADDRSTRLEN];
         char buf[MAXDATASIZE];
+        memset(buf, 0, MAXDATASIZE);
 
         memset(&hints, 0, sizeof hints);
         hints.ai_family = AF_UNSPEC;
@@ -90,9 +91,9 @@ public:
 
         int count = 0;
 
-        while (count < 5)
+        while (count < 10)
         {
-            int poll_count = poll(pfds, 1, 100);
+            int poll_count = poll(pfds, 1, 200);
 
             if (poll_count == -1)
             {
@@ -131,12 +132,11 @@ public:
     {
         char buf[MAXDATASIZE];
         char received_message[MAXDATASIZE];
+        memset(received_message, 0, MAXDATASIZE);
 
         int len, bytes_sent, numbytes;
 
         bytes_sent = send(sockfd, "A0002 CAPABILITY\n", strlen("A0002 CAPABILITY\n"), 0);
-
-        std::cout << "sent capability message " << std::endl;
 
         if (bytes_sent == -1)
         {
@@ -151,9 +151,9 @@ public:
 
         int count = 0;
 
-        while (count < 100)
+        while (count < 10)
         {
-            int poll_count = poll(pfds, 1, 10);
+            int poll_count = poll(pfds, 1, 200);
 
             if (poll_count == -1)
             {
@@ -251,9 +251,9 @@ public:
 
         int count = 0;
 
-        while (count < 100)
+        while (count < 10)
         {
-            int poll_count = poll(pfds, 1, 10);
+            int poll_count = poll(pfds, 1, 200);
 
             if (poll_count == -1)
             {
@@ -316,6 +316,110 @@ public:
     // Display subjects of each message
     int display_messages()
     {
+        char buf[MAXDATASIZE];
+        char received_message[MAXDATASIZE];
+        memset(received_message, 0, MAXDATASIZE);
+
+        int len, bytes_sent, numbytes;
+
+        bytes_sent = send(sockfd, "A0003 SELECT inbox\n", strlen("A0003 SELECT INBOX\n"), 0);
+
+        if (bytes_sent == -1)
+        {
+            std::cout << "error sending" << std::endl;
+            exit(1);
+        }
+
+        struct pollfd pfds[1];
+
+        pfds[0].fd = sockfd;
+        pfds[0].events = POLLIN;
+
+        int count = 0;
+
+        while (count < 100)
+        {
+            int poll_count = poll(pfds, 1, 10);
+
+            if (poll_count == -1)
+            {
+                perror("poll");
+                exit(1);
+            }
+
+            for (int i = 0; i < 1; i++)
+            {
+                if (pfds[i].revents & POLLIN)
+                {
+                    // Ack from receiver
+                    if (pfds[i].fd == sockfd)
+                    {
+                        memset(buf, 0, MAXDATASIZE);
+                        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+                        {
+                            perror("recv");
+                            exit(1);
+                        }
+
+                        buf[numbytes] = '\0';
+
+                        strcat(received_message, buf);
+                    }
+                }
+            }
+            count++;
+        }
+
+        std::cout << "received: " << received_message << std::endl;
+
+        // Fetch messages
+
+        bytes_sent = send(sockfd, "A654 FETCH 1 (BODY[HEADER.FIELDS (SUBJECT)])\n", strlen("A654 FETCH 1 (BODY[HEADER.FIELDS (SUBJECT)])\n"), 0);
+
+        if (bytes_sent == -1)
+        {
+            std::cout << "error sending" << std::endl;
+            exit(1);
+        }
+
+        count = 0;
+
+        memset(received_message, 0, MAXDATASIZE);
+        while (count < 100)
+        {
+            int poll_count = poll(pfds, 1, 10);
+
+            if (poll_count == -1)
+            {
+                perror("poll");
+                exit(1);
+            }
+
+            for (int i = 0; i < 1; i++)
+            {
+                if (pfds[i].revents & POLLIN)
+                {
+                    // Ack from receiver
+                    if (pfds[i].fd == sockfd)
+                    {
+                        memset(buf, 0, MAXDATASIZE);
+                        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+                        {
+                            perror("recv");
+                            exit(1);
+                        }
+
+                        buf[numbytes] = '\0';
+
+                        strcat(received_message, buf);
+                    }
+                }
+            }
+            count++;
+        }
+
+        std::cout << "received: " << received_message << std::endl;
+
         return 0;
     }
 
@@ -337,12 +441,11 @@ public:
 
         char buf[MAXDATASIZE];
         char received_message[MAXDATASIZE];
+        memset(received_message, 0, MAXDATASIZE);
 
         int len, bytes_sent, numbytes;
 
-        bytes_sent = send(sockfd, "A0003 LOGOUT\n", strlen("A0002 LOGOUT\n"), 0);
-
-        std::cout << "sent capability message " << std::endl;
+        bytes_sent = send(sockfd, "A0004 LOGOUT\n", strlen("A0004 LOGOUT\n"), 0);
 
         if (bytes_sent == -1)
         {

@@ -37,9 +37,23 @@ int main(int argc, char *argv[])
     if ((strlen(password) > 0) && (password[strlen(password) - 1] == '\n'))
         password[strlen(password) - 1] = '\0';
 
+    cout << "logging in..." << endl;
+    cout << "\n";
+
     imap.login(username, password);
 
+    cout << "sending capability message..." << endl;
+    cout << "\n";
+
     imap.capability();
+
+    cout << "selecting inbox..." << endl;
+    cout << "\n";
+
+    imap.display_messages();
+
+    cout << "logging out..." << endl;
+    cout << "\n";
 
     imap.logout();
 
