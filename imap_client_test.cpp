@@ -52,6 +52,14 @@ int main(int argc, char *argv[])
 
     imap.display_messages();
 
+    cout << "enter a message number to read... " << endl;
+
+    char message_num[10];
+
+    scanf("%s", message_num);
+
+    imap.read_message(message_num);
+
     cout << "logging out..." << endl;
     cout << "\n";
 
