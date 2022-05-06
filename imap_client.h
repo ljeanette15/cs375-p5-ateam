@@ -1,6 +1,6 @@
 // IMAP client object for connecting to an IMAP server and reading messages
 // Liam Jeanette and Loc Tran
-// May 2, 2022
+// May 5, 2022
 
 #include <regex.h>
 #include <poll.h>
@@ -28,7 +28,7 @@ public:
     char portstr[4];
     char *hostname;
     int sockfd;
-    char *tag;
+    int tag;
 
     Imap(char *host)
     {
@@ -40,6 +40,8 @@ public:
         portstr[3] = '\0';
 
         hostname = host;
+
+        tag = 1;
     }
 
     // Send initial message to connect to server using TCP
@@ -63,12 +65,14 @@ public:
 
         for (ptr = servinfo; ptr != NULL; ptr = ptr->ai_next)
         {
+            // Construct socket
             if ((sockfd = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol)) == -1)
             {
                 perror("client: socket");
                 continue;
             }
 
+            // Connect to Server
             if (connect(sockfd, ptr->ai_addr, ptr->ai_addrlen) != 0)
             {
                 close(sockfd);
@@ -86,6 +90,7 @@ public:
 
         freeaddrinfo(servinfo);
 
+        // Poll to listen for response from server (could come in multiple recvs)
         struct pollfd pfds[1];
 
         pfds[0].fd = sockfd;
@@ -107,7 +112,7 @@ public:
             {
                 if (pfds[i].revents & POLLIN)
                 {
-                    // Ack from receiver
+                    // Receive response from server
                     if (pfds[i].fd == sockfd)
                     {
                         memset(buf, 0, MAXDATASIZE);
@@ -118,8 +123,6 @@ public:
                         }
 
                         buf[numbytes] = '\0';
-
-                        // std::cout << "received: " << buf << std::endl;
                     }
                 }
             }
@@ -136,9 +139,33 @@ public:
         char received_message[MAXDATASIZE];
         memset(received_message, 0, MAXDATASIZE);
 
+        // Generate command message to send to server
+        char command[] = " CAPABILITY\n";
+
+        char tag_str[MAXDATASIZE];
+        memset(tag_str, 0, MAXDATASIZE);
+
+        sprintf(tag_str, "%d", tag);
+
+        char message[MAXDATASIZE];
+        memset(message, 0, MAXDATASIZE);
+
+        for (int i = 0; i < strlen(tag_str); i++)
+        {
+            message[i] = tag_str[i];
+        }
+
+        for (int i = 0; i < strlen(command); i++)
+        {
+            message[i + strlen(tag_str)] = command[i];
+        }
+
         int len, bytes_sent, numbytes;
 
-        bytes_sent = send(sockfd, "A0002 CAPABILITY\n", strlen("A0002 CAPABILITY\n"), 0);
+        // Send command to server
+        bytes_sent = send(sockfd, message, strlen(message), 0);
+
+        tag++;
 
         if (bytes_sent == -1)
         {
@@ -146,6 +173,7 @@ public:
             exit(1);
         }
 
+        // Listen for response from server
         struct pollfd pfds[1];
 
         pfds[0].fd = sockfd;
@@ -167,7 +195,7 @@ public:
             {
                 if (pfds[i].revents & POLLIN)
                 {
-                    // Ack from receiver
+                    // response from server
                     if (pfds[i].fd == sockfd)
                     {
                         memset(buf, 0, MAXDATASIZE);
@@ -186,7 +214,7 @@ public:
             count++;
         }
 
-        // std::cout << received_message << std::endl;
+        std::cout << received_message << std::endl;
 
         return 0;
     }
@@ -194,7 +222,6 @@ public:
     // Authenticate user using username and password
     int login(char *username, char *password)
     {
-        char tag_received[6];
         char status_received[2];
         char received_message[MAXDATASIZE];
         char buf[MAXDATASIZE];
@@ -202,43 +229,49 @@ public:
 
         int user_len = strlen(username);
         int pass_len = strlen(password);
-        char tag[6] = {'A', '0', '0', '0', '1', ' '};
+
+        char tag_str[MAXDATASIZE];
+        memset(tag_str, 0, MAXDATASIZE);
+
+        sprintf(tag_str, "%d", tag);
 
         // Add initial unique ID and command to message
-        char command[6] = {'L', 'O', 'G', 'I', 'N', ' '};
+        char command[] = " LOGIN ";
 
         char login_message[MAXDATASIZE];
 
         // Add ID, username, and password to message
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < strlen(tag_str); i++)
         {
-            login_message[i] = tag[i];
+            login_message[i] = tag_str[i];
         }
 
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < strlen(command); i++)
         {
-            login_message[i + 6] = command[i];
+            login_message[i + strlen(tag_str)] = command[i];
         }
 
         for (int i = 0; i < user_len; i++)
         {
-            login_message[i + 12] = username[i];
+            login_message[i + strlen(tag_str) + strlen(command)] = username[i];
         }
 
-        login_message[12 + user_len] = ' ';
+        login_message[strlen(tag_str) + strlen(command) + user_len] = ' ';
 
         for (int i = 0; i < pass_len; i++)
         {
-            login_message[i + 12 + user_len + 1] = password[i];
+            login_message[i + strlen(tag_str) + strlen(command) + user_len + 1] = password[i];
         }
 
-        login_message[pass_len + user_len + 12 + 1] = '\n';
-        login_message[pass_len + user_len + 12 + 2] = '\0';
+        login_message[pass_len + user_len + strlen(tag_str) + strlen(command) + 1] = '\n';
+        login_message[pass_len + user_len + strlen(tag_str) + strlen(command) + 2] = '\0';
 
         int len, bytes_sent, numbytes;
 
         // Send login command to server
         bytes_sent = send(sockfd, login_message, strlen(login_message), 0);
+
+        tag++;
 
         if (bytes_sent == -1)
         {
@@ -267,7 +300,7 @@ public:
             {
                 if (pfds[i].revents & POLLIN)
                 {
-                    // Ack from receiver
+                    // Response from Server
                     if (pfds[i].fd == sockfd)
                     {
                         memset(buf, 0, MAXDATASIZE);
@@ -286,17 +319,16 @@ public:
             count++;
         }
 
-        // std::cout << received_message << std::endl;
-
-        memset(tag_received, 0, 6);
+        char tag_received[strlen(tag_str)];
+        memset(tag_received, 0, strlen(tag_str));
         memset(status_received, 0, 2);
 
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < strlen(tag_str); i++)
         {
             tag_received[i] = received_message[i];
         }
 
-        if (strncmp(tag_received, tag, 5) != 0)
+        if (strncmp(tag_received, tag_str, strlen(tag_str)) != 0)
         {
             perror("tag received does not match");
             exit(-1);
@@ -304,7 +336,7 @@ public:
 
         for (int i = 0; i < 2; i++)
         {
-            status_received[i] = received_message[i + 6];
+            status_received[i] = received_message[i + strlen(tag_str) + 1];
         }
         if (strncmp(status_received, "OK", 2) != 0)
         {
@@ -323,6 +355,8 @@ public:
         memset(received_message, 0, MAXDATASIZE);
 
         int len, bytes_sent, numbytes;
+
+        // Send select command to get inbox
 
         bytes_sent = send(sockfd, "A0003 SELECT inbox\n", strlen("A0003 SELECT INBOX\n"), 0);
 
@@ -353,7 +387,7 @@ public:
             {
                 if (pfds[i].revents & POLLIN)
                 {
-                    // Ack from receiver
+                    // response from server
                     if (pfds[i].fd == sockfd)
                     {
                         memset(buf, 0, MAXDATASIZE);
@@ -405,7 +439,7 @@ public:
 
         std::cout << "You have " << num << " messages " << std::endl;
 
-        // Fetch messages
+        // Fetch all message subjects
 
         bytes_sent = send(sockfd, "A654 FETCH 1:* (BODY[HEADER.FIELDS (SUBJECT)])\n", strlen("A654 FETCH 1:* (BODY[HEADER.FIELDS (SUBJECT)])\n"), 0);
 
@@ -482,37 +516,46 @@ public:
         char received_message[MAXDATASIZE];
         memset(received_message, 0, MAXDATASIZE);
 
-        char tag[] = "A0005 ";
-        char command[] = "FETCH ";
+        // Construct command
+
+        char tag_str[100];
+        memset(tag_str, 0, 100);
+        sprintf(tag_str, "%d", tag);
+
+        char command[] = " FETCH ";
         char argument[] = "BODY[TEXT]\n";
 
         char total_message[MAXDATASIZE];
+        memset(total_message, 0, MAXDATASIZE);
 
-        for (int i = 0; i < strlen(tag); i++)
+        for (int i = 0; i < strlen(tag_str); i++)
         {
-            total_message[i] = tag[i];
+            total_message[i] = tag_str[i];
         }
 
         for (int i = 0; i < strlen(command); i++)
         {
-            total_message[i + strlen(tag)] = command[i];
+            total_message[i + strlen(tag_str)] = command[i];
         }
 
         for (int i = 0; i < strlen(message_num); i++)
         {
-            total_message[i + strlen(tag) + strlen(command)] = message_num[i];
+            total_message[i + strlen(tag_str) + strlen(command)] = message_num[i];
         }
 
-        total_message[strlen(tag) + strlen(command) + strlen(message_num)] = ' ';
+        total_message[strlen(tag_str) + strlen(command) + strlen(message_num)] = ' ';
 
         for (int i = 0; i < strlen(argument); i++)
         {
-            total_message[i + strlen(tag) + strlen(command) + strlen(message_num) + 1] = argument[i];
+            total_message[i + strlen(tag_str) + strlen(command) + strlen(message_num) + 1] = argument[i];
         }
 
         int len, bytes_sent, numbytes;
 
+        // Send command
         bytes_sent = send(sockfd, total_message, strlen(total_message), 0);
+
+        tag++;
 
         if (bytes_sent == -1)
         {
@@ -541,7 +584,7 @@ public:
             {
                 if (pfds[i].revents & POLLIN)
                 {
-                    // Ack from receiver
+                    // response from server
                     if (pfds[i].fd == sockfd)
                     {
                         memset(buf, 0, MAXDATASIZE);
@@ -559,6 +602,8 @@ public:
             }
             count++;
         }
+
+        // Print out message without the extra stuff from server
 
         char *newstr = strchr(received_message, '\n');
         int i = 0;
@@ -578,41 +623,46 @@ public:
         char received_message[MAXDATASIZE];
         memset(received_message, 0, MAXDATASIZE);
 
-        char tag[] = "A0003 ";
-        char command[] = "STORE ";
+        // construct command
+
+        char tag_str[100];
+        memset(tag_str, 0, 100);
+        sprintf(tag_str, "%d", tag);
+
+        char command[] = " STORE ";
         char arg[] = "+FLAGS (\\Deleted)\n";
 
         char message[MAXDATASIZE];
         memset(message, 0, MAXDATASIZE);
 
-        for (int i = 0; i < strlen(tag); i++)
+        for (int i = 0; i < strlen(tag_str); i++)
         {
-            message[i] = tag[i];
+            message[i] = tag_str[i];
         }
 
         for (int i = 0; i < strlen(command); i++)
         {
-            message[i + strlen(tag)] = command[i];
+            message[i + strlen(tag_str)] = command[i];
         }
 
         for (int i = 0; i < strlen(message_num); i++)
         {
-            message[i + strlen(tag) + strlen(command)] = message_num[i];
+            message[i + strlen(tag_str) + strlen(command)] = message_num[i];
         }
 
-        message[strlen(tag) + strlen(command) + strlen(message_num)] = ' ';
+        message[strlen(tag_str) + strlen(command) + strlen(message_num)] = ' ';
 
         for (int i = 0; i < strlen(arg); i++)
         {
-            message[i + strlen(tag) + strlen(command) + strlen(message_num) + 1] = arg[i];
+            message[i + strlen(tag_str) + strlen(command) + strlen(message_num) + 1] = arg[i];
         }
 
-        std::cout << message << std::endl;
+        int len, bytes_sent, numbytes;
 
-        int len,
-            bytes_sent, numbytes;
-
+        // Send command
         bytes_sent = send(sockfd, message, strlen(message), 0);
+
+        tag++;
 
         if (bytes_sent == -1)
         {
@@ -659,12 +709,31 @@ public:
             }
             count++;
         }
-        std::cout << received_message << std::endl;
 
         // Expunge messages with deleted flag set
+
+        memset(tag_str, 0, 100);
+        sprintf(tag_str, "%d", tag);
+
+        char command2[] = " EXPUNGE\n";
+
+        memset(message, 0, MAXDATASIZE);
+
+        for (int i = 0; i < strlen(tag_str); i++)
+        {
+            message[i] = tag_str[i];
+        }
+
+        for (int i = 0; i < strlen(command2); i++)
+        {
+            message[i + strlen(tag_str)] = command2[i];
+        }
+
         memset(received_message, 0, MAXDATASIZE);
 
-        bytes_sent = send(sockfd, "A0002 EXPUNGE\n", strlen("A0002 EXPUNGE\n"), 0);
+        bytes_sent = send(sockfd, message, strlen(message), 0);
+
+        tag++;
 
         if (bytes_sent == -1)
         {

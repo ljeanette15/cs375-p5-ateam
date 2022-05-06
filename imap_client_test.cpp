@@ -1,6 +1,6 @@
 // IMAP client test file for connecting to an IMAP server and reading messages
 // Liam Jeanette and Loc Tran
-// May 2, 2022
+// May 5, 2022
 
 #include <poll.h>
 #include "imap_client.h"
