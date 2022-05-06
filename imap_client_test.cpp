@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        cout << "enter a message number to read or d to display all subjects or q to quit: " << endl;
+        cout << "enter r to read a message, d to delete a message, s to display the subjects, or q to quit: " << endl;
 
         scanf("%s", message_num);
 
@@ -73,14 +73,26 @@ int main(int argc, char *argv[])
             return 0;
         }
 
-        if (message_num[0] == 'd')
+        if (message_num[0] == 's')
         {
             imap.display_messages();
         }
 
-        else
+        if (message_num[0] == 'r')
         {
+            cout << "enter message number to read: " << endl;
+
+            scanf("%s", message_num);
+
             imap.read_message(message_num);
+        }
+
+        if (message_num[0] == 'd')
+        {
+            cout << "enter message number to delete: " << endl;
+
+            scanf("%s", message_num);
+            imap.delete_message(message_num);
         }
     }
 

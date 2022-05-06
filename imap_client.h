@@ -28,6 +28,7 @@ public:
     char portstr[4];
     char *hostname;
     int sockfd;
+    char *tag;
 
     Imap(char *host)
     {
@@ -571,15 +572,47 @@ public:
     }
 
     // Delete messages from server
-    int delete_messages(char *message_num)
+    int delete_message(char *message_num)
     {
         char buf[MAXDATASIZE];
         char received_message[MAXDATASIZE];
         memset(received_message, 0, MAXDATASIZE);
 
-        int len, bytes_sent, numbytes;
+        char tag[] = "A0003 ";
+        char command[] = "STORE ";
+        char arg[] = "+FLAGS (\\Deleted)\n";
 
-        bytes_sent = send(sockfd, "A0003 CAPABILITY\n", strlen("A0003 CAPABILITY\n"), 0);
+        char message[MAXDATASIZE];
+        memset(message, 0, MAXDATASIZE);
+
+        for (int i = 0; i < strlen(tag); i++)
+        {
+            message[i] = tag[i];
+        }
+
+        for (int i = 0; i < strlen(command); i++)
+        {
+            message[i + strlen(tag)] = command[i];
+        }
+
+        for (int i = 0; i < strlen(message_num); i++)
+        {
+            message[i + strlen(tag) + strlen(command)] = message_num[i];
+        }
+
+        message[strlen(tag) + strlen(command) + strlen(message_num)] = ' ';
+
+        for (int i = 0; i < strlen(arg); i++)
+        {
+            message[i + strlen(tag) + strlen(command) + strlen(message_num) + 1] = arg[i];
+        }
+
+        std::cout << message << std::endl;
+
+        int len,
+            bytes_sent, numbytes;
+
+        bytes_sent = send(sockfd, message, strlen(message), 0);
 
         if (bytes_sent == -1)
         {
@@ -626,8 +659,54 @@ public:
             }
             count++;
         }
+        std::cout << received_message << std::endl;
 
-        // std::cout << received_message << std::endl;
+        // Expunge messages with deleted flag set
+        memset(received_message, 0, MAXDATASIZE);
+
+        bytes_sent = send(sockfd, "A0002 EXPUNGE\n", strlen("A0002 EXPUNGE\n"), 0);
+
+        if (bytes_sent == -1)
+        {
+            std::cout << "error sending" << std::endl;
+            exit(1);
+        }
+
+        count = 0;
+
+        while (count < 10)
+        {
+            int poll_count = poll(pfds, 1, 200);
+
+            if (poll_count == -1)
+            {
+                perror("poll");
+                exit(1);
+            }
+
+            for (int i = 0; i < 1; i++)
+            {
+                if (pfds[i].revents & POLLIN)
+                {
+                    // Ack from receiver
+                    if (pfds[i].fd == sockfd)
+                    {
+                        memset(buf, 0, MAXDATASIZE);
+                        if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1)
+                        {
+                            perror("recv");
+                            exit(1);
+                        }
+
+                        buf[numbytes] = '\0';
+
+                        strcat(received_message, buf);
+                    }
+                }
+            }
+            count++;
+        }
+        std::cout << received_message << std::endl;
 
         return 0;
     }
