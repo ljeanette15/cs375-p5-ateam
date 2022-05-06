@@ -52,16 +52,37 @@ int main(int argc, char *argv[])
 
     imap.display_messages();
 
-    cout << "enter a message number to read... " << endl;
+    // cout << "enter a message number to read... " << endl;
 
-    char message_num[10];
+    char *message_num;
 
-    scanf("%s", message_num);
+    while (1)
+    {
+        cout << "enter a message number to read or d to display all subjects or q to quit: " << endl;
 
-    imap.read_message(message_num);
+        scanf("%s", message_num);
 
-    cout << "logging out..." << endl;
-    cout << "\n";
+        if (message_num[0] == 'q')
+        {
+            cout << "logging out..." << endl;
+            cout << "\n";
+            imap.logout();
+
+            imap.quit();
+
+            return 0;
+        }
+
+        if (message_num[0] == 'd')
+        {
+            imap.display_messages();
+        }
+
+        else
+        {
+            imap.read_message(message_num);
+        }
+    }
 
     imap.logout();
 

@@ -371,8 +371,6 @@ public:
             count++;
         }
 
-        // std::cout << received_message << std::endl;
-
         // Get number of messages in mailbox
         regex_t reegex;
         regmatch_t pmatch[1];
@@ -472,71 +470,48 @@ public:
             std::cout << "\n";
         }
 
-        // std::cout << received_message << std::endl;
-
-        // // Get only the subject of each fetch
-        // regex_t reegex2;
-        // regmatch_t pmatch2[num];
-        // int value2;
-
-        // value2 = regcomp(&reegex2, "Subject:", 0);
-
-        // for (int i = 0; i < num; i++)
-        // {
-        //     if (regexec(&reegex2, received_message, num, pmatch2, 0) == 0)
-        //     {
-        //         std::cout << "pattern found" << std::endl;
-        //     }
-
-        //     else
-        //     {
-        //         std::cout << "pattern not found" << std::endl;
-        //     }
-        // }
-
-        // std::cout << pmatch2[0].rm_so << std::endl;
-        // std::cout << pmatch2[1].rm_so << std::endl;
-        // std::cout << pmatch2[2].rm_so << std::endl;
-
-        // for (int i = 0; i < num; i++)
-        // {
-        //     std::cout << i << ": ";
-        //     for (int j = pmatch2[i].rm_so; j < pmatch2[i].rm_eo; j++)
-        //     {
-        //         std::cout << received_message[j];
-        //     }
-        //     std::cout << "\n";
-        // }
-
         return 0;
     }
 
     // Access contents of message and mark as read
-    int read_message(char *message_num)
+    int read_message(char message_num[])
     {
-        char *num;
+
         char buf[MAXDATASIZE];
         char received_message[MAXDATASIZE];
         memset(received_message, 0, MAXDATASIZE);
-
-        std::cout << strlen(message_num) << std::endl;
 
         char tag[] = "A0005 ";
         char command[] = "FETCH ";
         char argument[] = "BODY[TEXT]\n";
 
-        char *message;
-        char *total_message;
-        message = strcat(tag, command);
-        message = strcat(message, num);
-        message = strcat(message, " ");
-        total_message = strcat(message, argument);
+        char total_message[MAXDATASIZE];
 
-        std::cout << total_message << std::endl;
+        for (int i = 0; i < strlen(tag); i++)
+        {
+            total_message[i] = tag[i];
+        }
+
+        for (int i = 0; i < strlen(command); i++)
+        {
+            total_message[i + strlen(tag)] = command[i];
+        }
+
+        for (int i = 0; i < strlen(message_num); i++)
+        {
+            total_message[i + strlen(tag) + strlen(command)] = message_num[i];
+        }
+
+        total_message[strlen(tag) + strlen(command) + strlen(message_num)] = ' ';
+
+        for (int i = 0; i < strlen(argument); i++)
+        {
+            total_message[i + strlen(tag) + strlen(command) + strlen(message_num) + 1] = argument[i];
+        }
 
         int len, bytes_sent, numbytes;
 
-        bytes_sent = send(sockfd, message, strlen(message), 0);
+        bytes_sent = send(sockfd, total_message, strlen(total_message), 0);
 
         if (bytes_sent == -1)
         {
