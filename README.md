@@ -1,4 +1,6 @@
-# cs375-p5-ateam
+# CS375: Final Project: IMAP Client
+## Liam Jeanette and Loc (Lucas) Tran
+### May 5th, 2022
 
 # Usage:
 
@@ -12,7 +14,12 @@ g++ -o imap_client imap_client.h and imap_client_test.cpp
 
 When prompted, enter your Denison username and Denison password (unfortunately the password will be shown on your terminal, so don't let others see)
 
-*You must have at least one message in your mailbox in order for the fetch to work. Additionally, it is assumed that only one inbox titled "inbox" exists.
+* You must have at least one message in your mailbox in order for the fetch to work. Additionally, it is assumed that only one inbox titled "inbox" exists.
+** Sometimes a segmentation fault is thrown randomly. We are not sure where this comes from. We have found that if you recompile and run it again, there's a good chance it will work. We plan to fix this in future updates, but we did not have time.
+
+# General Design
+
+This IMAP client was designed using object oriented programming so that different test interfaces could be built using these IMAP client functions. The current test program asks the user to login, then displays the user's inbox. The user is then prompted to either read, delete, or display messages, or quit the program. The functions are implemented by sending IMAP commands over a TCP connection to an IMAP server running on rogue1.cs.denison.edu. Each time a command is sent, a new tag is generated for that command.
 
 # API
 
@@ -39,6 +46,10 @@ To see what mail is in your inbox, the imap.display_messages() function is used.
 ## Read Messages
 
 To read a message, use the imap.read_message() function. The correct message number should be passed as an argument. This function fetches the body of the message and displays only the text without the server response tag or flags.
+
+## Delete Messages
+
+To delete messages, use the imap.delete_messagge() function. The correct message number should be passed as an argument. This function sets the deleted flag for the given message, then deletes that message.
 
 ## Logout
 
