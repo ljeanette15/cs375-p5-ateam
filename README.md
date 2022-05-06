@@ -39,6 +39,10 @@ The imap.make_connection() function must be called before using any of the other
 
 In order to view mail, the user must first authenticate their identity. To do this, use the imap.login() function. Your username and password should be passed as strings to this function. If the server sends a bad response, the user will see that the response did not match what was anticipated, and the program will exit.
 
+## Capabilities
+
+The imap.capability() funtion requests the possible capabilities from the server and prints them out upon receiving them. 
+
 ## Displaying Messages
 
 To see what mail is in your inbox, the imap.display_messages() function is used. This function selects the inbox "inbox", and determines how many messages exist in the mailbox. The function then fetches all subjects of messages in the mailbox and displays them to the terminal. 
